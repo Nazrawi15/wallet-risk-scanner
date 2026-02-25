@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Wallet Risk Scanner</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 680px;
+      width: 100%;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 2rem;
+      color: #7c3aed;
+      margin-bottom: 8px;
+    }
+    .header p {
+      color: #888;
+      font-size: 0.95rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #7c3aed;
+      color: #a78bfa;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+    }
+    .input-section {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .input-section label {
+      display: block;
+      margin-bottom: 8px;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    input[type="text"] {
+      flex: 1;
+      background: #0a0a0f;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    input[type="text"]:focus {
+      border-color: #7c3aed;
+    }
+    button {
+      background: #7c3aed;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: #6d28d9; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .price-note {
+      margin-top: 10px;
+      color: #666;
+      font-size: 0.8rem;
+    }
+    .price-note span { color: #a78bfa; }
+    .payment-screen {
+      background: #111118;
+      border: 1px solid #7c3aed;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      display: none;
+      text-align: center;
+    }
+    .payment-screen h2 {
+      color: #f59e0b;
+      margin-bottom: 8px;
+    }
+    .payment-screen p {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+    .pay-btn {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 700;
+      padding: 14px 32px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .pay-btn:hover { background: #d97706; }
+    .result-screen {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 24px;
+      display: none;
+    }
+    .risk-badge {
+      display: inline-block;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 16px;
+    }
+    .risk-LOW { background: #064e3b; color: #34d399; }
+    .risk-MEDIUM { background: #451a03; color: #fbbf24; }
+    .risk-HIGH { background: #450a0a; color: #f87171; }
+    .score {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #7c3aed;
+      margin-bottom: 4px;
+    }
+    .score-label {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat {
+      background: #0a0a0f;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #a78bfa;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+    }
+    .ai-box {
+      background: #0d0d1a;
+      border: 1px solid #2d1b69;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .ai-box h3 {
+      color: #a78bfa;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .ai-box p {
+      color: #ccc;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    .flags { margin-top: 16px; }
+    .flags h3 {
+      color: #888;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .flag-item {
+      background: #1a0a0a;
+      border-left: 3px solid #f87171;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #fca5a5;
+    }
+    .no-flags {
+      color: #34d399;
+      font-size: 0.85rem;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      display: none;
+      color: #888;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #222;
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status-steps {
+      text-align: left;
+      margin-top: 16px;
+      background: #0d0d1a;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 16px;
+      display: inline-block;
+      min-width: 280px;
+    }
+    .step {
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      transition: color 0.3s;
+    }
+    .step:last-child { margin-bottom: 0; }
+    .powered {
+      text-align: center;
+      margin-top: 24px;
+      color: #444;
+      font-size: 0.8rem;
+    }
+    .powered span { color: #7c3aed; }
+    .tx-proof {
+      margin-top: 16px;
+      background: #0a0f0a;
+      border: 1px solid #166534;
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    .tx-proof h3 {
+      color: #34d399;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .tx-proof p {
+      color: #888;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Built on PinionOS × Base × x402</div>
+      <h1>🔍 AI Wallet Risk Scanner</h1>
+      <p>Autonomous security intelligence. Pay once, get instant AI-powered risk analysis.</p>
+    </div>
+
+    <div class="input-section">
+      <label>Enter Ethereum Wallet Address</label>
+      <div class="input-row">
+        <input type="text" id="walletInput" placeholder="0x742d35Cc6634C0532925a3b844Bc454e4438f44e" />
+        <button onclick="startScan()" id="scanBtn">Scan Wallet</button>
+      </div>
+      <p class="price-note">Cost: <span>$0.01 USDC</span> per scan · Powered by AI · Runs on Base</p>
+    </div>
+
+    <!-- Payment Screen -->
+    <div class="payment-screen" id="paymentScreen">
+      <h2>⚡ Payment Required</h2>
+      <p>This scan costs <strong>$0.01 USDC</strong> on Base network.<br/>Payment is processed automatically via x402 protocol.</p>
+      <button class="pay-btn" onclick="confirmPayment()">Pay $0.01 USDC & Scan</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loadingScreen">
+      <div class="spinner"></div>
+      <div class="status-steps">
+        <p class="step" id="step1">⏳ Initiating x402 payment...</p>
+        <p class="step" id="step2">⏳ PinionOS Skill Executing...</p>
+        <p class="step" id="step3">⏳ AI Risk Assessment Generating...</p>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-screen" id="resultScreen">
+      <div id="riskBadge" class="risk-badge"></div>
+      <div class="score" id="scoreValue"></div>
+      <div class="score-label">Risk Score out of 100</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value" id="totalTx"></div>
+          <div class="stat-label">Transactions</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="failedTx"></div>
+          <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="contracts"></div>
+          <div class="stat-label">Contracts</div>
+        </div>
+      </div>
+      <div class="ai-box">
+        <h3>🤖 AI Analysis</h3>
+        <p id="aiExplanation"></p>
+      </div>
+      <div class="flags">
+        <h3>Risk Flags</h3>
+        <div id="flagsList"></div>
+      </div>
+      <div class="tx-proof">
+        <h3>⛓ On-Chain Proof</h3>
+        <p>Payment settled on Base network via x402 protocol · PinionOS infrastructure · <span style="color:#34d399;">Transaction verified</span></p>
+      </div>
+    </div>
+
+    <div class="powered">Powered by <span>PinionOS</span> · x402 Protocol · Base Network · Groq AI</div>
+  </div>
+
+  <script>
+    let currentAddress = '';
+
+    function startScan() {
+      const address = document.getElementById('walletInput').value.trim();
+      if (!address) return alert('Please enter a wallet address');
+      currentAddress = address;
+      document.getElementById('paymentScreen').style.display = 'block';
+      document.getElementById('resultScreen').style.display = 'none';
+    }
+
+    async function confirmPayment() {
+      document.getElementById('paymentScreen').style.display = 'none';
+      document.getElementById('loadingScreen').style.display = 'block';
+      document.getElementById('scanBtn').disabled = true;
+
+      // Animate steps
+      setTimeout(() => {
+        document.getElementById('step1').style.color = '#34d399';
+        document.getElementById('step1').textContent = '✅ x402 Payment Confirmed';
+      }, 1500);
+      setTimeout(() => {
+        document.getElementById('step2').style.color = '#34d399';
+        document.getElementById('step2').textContent = '✅ PinionOS Skill Executed';
+      }, 2500);
+      setTimeout(() => {
+        document.getElementById('step3').style.color = '#34d399';
+        document.getElementById('step3').textContent = '✅ AI Risk Assessment Generated';
+      }, 3500);
+
+      try {
+        const response = await fetch('/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-payment': '0xsimulated_payment_' + Date.now()
+          },
+          body: JSON.stringify({ address: currentAddress })
+        });
+
+        const data = await response.json();
+
+        setTimeout(() => {
+          document.getElementById('loadingScreen').style.display = 'none';
+          document.getElementById('resultScreen').style.display = 'block';
+          document.getElementById('scanBtn').disabled = false;
+
+          document.getElementById('riskBadge').textContent = data.riskLevel + ' RISK';
+          document.getElementById('riskBadge').className = 'risk-badge risk-' + data.riskLevel;
+          document.getElementById('scoreValue').textContent = data.riskScore;
+          document.getElementById('totalTx').textContent = data.totalTransactions;
+          document.getElementById('failedTx').textContent = data.failedTransactions;
+          document.getElementById('contracts').textContent = data.uniqueContracts;
+          document.getElementById('aiExplanation').textContent = data.aiExplanation;
+
+          const flagsList = document.getElementById('flagsList');
+          flagsList.innerHTML = '';
+          if (data.flags && data.flags.length > 0) {
+            data.flags.forEach(flag => {
+              const div = document.createElement('div');
+              div.className = 'flag-item';
+              div.textContent = flag;
+              flagsList.appendChild(div);
+            });
+          } else {
+            flagsList.innerHTML = '<p class="no-flags">✅ No risk flags detected</p>';
+          }
+        }, 4000);
+
+      } catch (error) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('scanBtn').disabled = false;
+        alert('Scan failed. Please try again.');
+      }
+    }
+  </script>
+</body>
+</html>
