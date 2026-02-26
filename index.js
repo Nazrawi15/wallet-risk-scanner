@@ -8,42 +8,45 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+console.log('ENV CHECK:', process.env.WALLET_ADDRESS, process.env.GROQ_API_KEY ? 'GROQ_OK' : 'GROQ_MISSING');
+
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-const MINIMUM_PAYMENT = 9000; // $0.01 USDC (6 decimals)
-const RECEIVER = (process.env.WALLET_ADDRESS || '').toLowerCase();
+const MINIMUM_PAYMENT = 9000;
 
-// ─── Scan History (in-memory store) ──────────────────────────────────────────
+// ─── Scan History ────────────────────────────────────────────────────────────
 const scanHistory = [];
 
 // ─── Payment Verification ────────────────────────────────────────────────────
 async function verifyPayment(txHash) {
   try {
     const response = await axios.get(
-      `https://base.blockscout.com/api/v2/transactions/${txHash}/token-transfers`
+      `https://base.blockscout.com/api/v2/addresses/${process.env.WALLET_ADDRESS}/token-transfers`,
+      { params: { type: 'ERC-20' } }
     );
 
     const transfers = response.data.items;
     if (!transfers || transfers.length === 0) {
-      return { valid: false, reason: 'Transaction not found on Base network.' };
+      return { valid: false, reason: 'No transfers found for scanner wallet.' };
     }
 
-    const usdcTransfer = transfers.find(t => {
-      const isUSDC = t.token?.address_hash?.toLowerCase() === USDC_CONTRACT.toLowerCase();
-      const isToUs = t.to?.hash?.toLowerCase() === RECEIVER;
-      return isUSDC && isToUs;
-    });
+    const match = transfers.find(t =>
+      t.transaction_hash &&
+      t.transaction_hash.toLowerCase() === txHash.toLowerCase() &&
+      t.to?.hash?.toLowerCase() === (process.env.WALLET_ADDRESS || '').toLowerCase() &&
+      t.token?.address_hash?.toLowerCase() === USDC_CONTRACT.toLowerCase()
+    );
 
-    if (!usdcTransfer) {
+    if (!match) {
       return {
         valid: false,
-        reason: `No USDC payment found to scanner wallet. Send USDC on Base to: ${process.env.WALLET_ADDRESS}`
+        reason: `Payment not found. Make sure you sent USDC on Base to: ${process.env.WALLET_ADDRESS}`
       };
     }
 
-    const value = parseInt(usdcTransfer.total.value);
+    const value = parseInt(match.total.value);
     if (value < MINIMUM_PAYMENT) {
       return {
         valid: false,
@@ -54,7 +57,7 @@ async function verifyPayment(txHash) {
     return {
       valid: true,
       amount: (value / 1000000).toFixed(4),
-      from: usdcTransfer.from.hash
+      from: match.from.hash
     };
 
   } catch (error) {
@@ -144,8 +147,6 @@ Flags: ${flags.length > 0 ? flags.join(', ') : 'None'}`
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
-
-// POST /scan — verify payment then scan wallet
 app.post('/scan', async (req, res) => {
   const { address, txHash } = req.body;
 
@@ -174,7 +175,6 @@ app.post('/scan', async (req, res) => {
   try {
     const result = await analyzeWallet(address);
 
-    // Store in history
     scanHistory.unshift({
       address: result.address,
       riskLevel: result.riskLevel,
@@ -195,7 +195,6 @@ app.post('/scan', async (req, res) => {
   }
 });
 
-// GET /stats — return scan history and total earnings
 app.get('/stats', (req, res) => {
   const totalEarned = scanHistory.reduce((sum, s) => sum + parseFloat(s.amountPaid), 0);
   res.json({
@@ -205,12 +204,10 @@ app.get('/stats', (req, res) => {
   });
 });
 
-// GET / — serve frontend
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-// GET /dashboard — serve dashboard
 app.get('/dashboard', (req, res) => {
   res.sendFile(__dirname + '/public/dashboard.html');
 });
