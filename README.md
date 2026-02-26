@@ -2,7 +2,7 @@
 
 A tool that scans any Ethereum wallet for risk and charges $0.01 USDC automatically before giving you the results. The payment is verified on-chain on Base network before the scan runs — no fake payments accepted.
 
-Built for the PinionOS hackathon in 3 days by a first-time builder.
+Built for the PinionOS hackathon
 
 ---
 
