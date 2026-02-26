@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scanner Dashboard — PinionOS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; }
+    .badge {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #7c3aed;
+      color: #a78bfa;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+    }
+    .header h1 { font-size: 2rem; color: #7c3aed; margin-bottom: 8px; }
+    .header p { color: #888; font-size: 0.95rem; }
+
+    /* Stats cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .stat-card.highlight { border-color: #7c3aed; }
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #7c3aed;
+      margin-bottom: 4px;
+    }
+    .stat-number.green { color: #34d399; }
+    .stat-label { color: #666; font-size: 0.85rem; }
+
+    /* Live indicator */
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: #34d399;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .live-text { color: #34d399; font-size: 0.85rem; }
+
+    /* Scan history table */
+    .history-card {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .history-card h2 {
+      color: #aaa;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+    .scan-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #1a1a1a;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .scan-row:last-child { border-bottom: none; }
+    .scan-row.header-row { color: #555; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+    .wallet-addr { color: #a78bfa; font-family: monospace; }
+    .risk-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .risk-LOW { background: #064e3b; color: #34d399; }
+    .risk-MEDIUM { background: #451a03; color: #fbbf24; }
+    .risk-HIGH { background: #450a0a; color: #f87171; }
+    .amount { color: #34d399; }
+    .time { color: #555; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #444;
+    }
+    .empty-state p { margin-bottom: 8px; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      color: #444;
+      font-size: 0.8rem;
+    }
+    .footer a { color: #7c3aed; text-decoration: none; }
+    .footer span { color: #7c3aed; }
+
+    /* Refresh button */
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #888;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size:0.8rem;
+      float: right;
+    }
+    .refresh-btn:hover { border-color: #7c3aed; color: #a78bfa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Live Dashboard · PinionOS × Base × x402</div>
+      <h1>📊 Scanner Earnings Dashboard</h1>
+      <p>Real-time view of autonomous scans and USDC earnings on Base network</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card highlight">
+        <div class="stat-number green" id="totalEarned">$0.00</div>
+        <div class="stat-label">Total USDC Earned</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="totalScans">0</div>
+        <div class="stat-label">Total Scans</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="avgRisk">—</div>
+        <div class="stat-label">Most Common Risk Level</div>
+      </div>
+    </div>
+
+    <!-- Scan History -->
+    <div class="history-card">
+      <div>
+        <h2 style="display:inline">Recent Scans</h2>
+        <button class="refresh-btn" onclick="loadStats()">↻ Refresh</button>
+      </div>
+      <br/>
+      <div class="live-indicator">
+        <div class="live-dot"></div>
+        <span class="live-text">Auto-refreshing every 10 seconds</span>
+      </div>
+
+      <div class="scan-row header-row">
+        <div>Wallet Address</div>
+        <div>Risk Level</div>
+        <div>Amount Paid</div>
+        <div>Time</div>
+      </div>
+
+      <div id="scanList">
+        <div class="empty-state">
+          <p>No scans yet.</p>
+          <p>Run a scan or the agent demo to see results here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a href="/">← Back to Scanner</a> &nbsp;·&nbsp;
+      Powered by <span>PinionOS</span> · Base Network · x402 Protocol
+      &nbsp;·&nbsp;
+      <a href="https://basescan.org/address/0xb3Ad1a22b8483Bc1abac5449F7508B8779e82B1C#tokentxns" target="_blank">View on Basescan ↗</a>
+    </div>
+  </div>
+
+  <script>
+    function timeAgo(timestamp) {
+      const seconds = Math.floor((new Date() - new Date(timestamp)) / 1000);
+      if (seconds < 60) return seconds + 's ago';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+      return Math.floor(seconds / 86400) + 'd ago';
+    }
+
+    function shortAddress(addr) {
+      return addr.substring(0, 6) + '...' + addr.substring(addr.length - 4);
+    }
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/stats');
+        const data = await response.json();
+
+        // Update stat cards
+        document.getElementById('totalEarned').textContent = '$' + data.totalEarned;
+        document.getElementById('totalScans').textContent = data.totalScans;
+
+        // Most common risk level
+        if (data.recentScans.length > 0) {
+          const levels = data.recentScans.map(s => s.riskLevel);
+          const counts = {};
+          levels.forEach(l => counts[l] = (counts[l] || 0) + 1);
+          const most = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+          document.getElementById('avgRisk').textContent = most;
+        }
+
+        // Render scan list
+        const scanList = document.getElementById('scanList');
+        if (data.recentScans.length === 0) {
+          scanList.innerHTML = `
+            <div class="empty-state">
+              <p>No scans yet.</p>
+              <p>Run a scan or the agent demo to see results here.</p>
+            </div>`;
+          return;
+        }
+
+        scanList.innerHTML = data.recentScans.map(scan => `
+          <div class="scan-row">
+            <div class="wallet-addr" title="${scan.address}">${shortAddress(scan.address)}</div>
+            <div><span class="risk-pill risk-${scan.riskLevel}">${scan.riskLevel}</span></div>
+            <div class="amount">$${scan.amountPaid} USDC</div>
+            <div class="time">${timeAgo(scan.timestamp)}</div>
+          </div>
+        `).join('');
+
+      } catch (error) {
+        console.log('Error loading stats:', error);
+      }
+    }
+
+    // Load on page open
+    loadStats();
+
+    // Auto refresh every 10 seconds
+    setInterval(loadStats, 10000);
+  </script>
+</body>
+</html>

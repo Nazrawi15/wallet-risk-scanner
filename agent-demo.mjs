@@ -41,7 +41,6 @@ async function runAgentDemo() {
       transport: http('https://mainnet.base.org')
     });
 
-    // USDC transfer ABI
     const transferAbi = [{
       name: 'transfer',
       type: 'function',
@@ -62,17 +61,31 @@ async function runAgentDemo() {
     console.log('Transaction hash:', txHash);
     console.log('✅ Payment broadcast to Base network\n');
 
-    // Step 4: Wait for confirmation
+    // Step 4: Wait 60 seconds for Blockscout to index
     console.log('Step 4: Waiting for on-chain confirmation...');
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    await new Promise(resolve => setTimeout(resolve, 60000));
     console.log('✅ Payment confirmed\n');
 
-    // Step 5: Call scanner with transaction hash
+    // Step 5: Call scanner with retry logic
     console.log('Step 5: Calling AI Wallet Risk Scanner with payment proof...');
-    const scanResponse = await axios.post(`${SCANNER_URL}/scan`, {
-      address: WALLET_TO_SCAN,
-      txHash: txHash
-    });
+    let scanResponse;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`Attempt ${attempt}...`);
+        scanResponse = await axios.post(`${SCANNER_URL}/scan`, {
+          address: WALLET_TO_SCAN,
+          txHash: txHash
+        });
+        break;
+      } catch (err) {
+        if (attempt < 3) {
+          console.log('Not indexed yet, waiting 20 more seconds...');
+          await new Promise(resolve => setTimeout(resolve, 20000));
+        } else {
+          throw err;
+        }
+      }
+    }
 
     const result = scanResponse.data;
     console.log('\n🎯 SCAN COMPLETE!\n');

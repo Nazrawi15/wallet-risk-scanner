@@ -15,8 +15,10 @@ const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const MINIMUM_PAYMENT = 9000; // $0.01 USDC (6 decimals)
 const RECEIVER = (process.env.WALLET_ADDRESS || '').toLowerCase();
 
+// ─── Scan History (in-memory store) ──────────────────────────────────────────
+const scanHistory = [];
+
 // ─── Payment Verification ────────────────────────────────────────────────────
-// Verifies a real on-chain USDC payment on Base network via Blockscout
 async function verifyPayment(txHash) {
   try {
     const response = await axios.get(
@@ -28,7 +30,6 @@ async function verifyPayment(txHash) {
       return { valid: false, reason: 'Transaction not found on Base network.' };
     }
 
-    // Find a USDC transfer to our scanner wallet
     const usdcTransfer = transfers.find(t => {
       const isUSDC = t.token?.address_hash?.toLowerCase() === USDC_CONTRACT.toLowerCase();
       const isToUs = t.to?.hash?.toLowerCase() === RECEIVER;
@@ -62,7 +63,6 @@ async function verifyPayment(txHash) {
 }
 
 // ─── Risk Scoring Engine ─────────────────────────────────────────────────────
-// Fetches wallet data from Etherscan and calculates a risk score
 async function analyzeWallet(address) {
   const response = await axios.get('https://api.etherscan.io/v2/api', {
     params: {
@@ -87,20 +87,17 @@ async function analyzeWallet(address) {
   let riskScore = 0;
   const flags = [];
 
-  // No transaction history
   if (transactions.length === 0) {
     riskScore += 20;
     flags.push('No transaction history');
   }
 
-  // High failed transaction count
   const failedTx = transactions.filter(tx => tx.isError === '1');
   if (failedTx.length > 5) {
     riskScore += 30;
     flags.push(`High failed transaction count: ${failedTx.length}`);
   }
 
-  // New wallet
   if (transactions.length > 0) {
     const firstTx = transactions[transactions.length - 1];
     const ageInDays = (Date.now() / 1000 - parseInt(firstTx.timeStamp)) / 86400;
@@ -110,7 +107,6 @@ async function analyzeWallet(address) {
     }
   }
 
-  // Interacts with many contracts
   const uniqueContracts = [...new Set(transactions.map(tx => tx.to))];
   if (uniqueContracts.length > 50) {
     riskScore += 15;
@@ -119,7 +115,6 @@ async function analyzeWallet(address) {
 
   const riskLevel = riskScore >= 50 ? 'HIGH' : riskScore >= 25 ? 'MEDIUM' : 'LOW';
 
-  // AI explanation via Groq
   const aiResponse = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     max_tokens: 300,
@@ -158,7 +153,6 @@ app.post('/scan', async (req, res) => {
     return res.status(400).json({ error: 'Wallet address required' });
   }
 
-  // Require payment
   if (!txHash) {
     return res.status(402).json({
       error: 'Payment Required',
@@ -169,7 +163,6 @@ app.post('/scan', async (req, res) => {
     });
   }
 
-  // Verify on-chain payment
   const payment = await verifyPayment(txHash);
   if (!payment.valid) {
     return res.status(402).json({
@@ -178,9 +171,19 @@ app.post('/scan', async (req, res) => {
     });
   }
 
-  // Run scan
   try {
     const result = await analyzeWallet(address);
+
+    // Store in history
+    scanHistory.unshift({
+      address: result.address,
+      riskLevel: result.riskLevel,
+      riskScore: result.riskScore,
+      amountPaid: payment.amount,
+      paidBy: payment.from,
+      timestamp: new Date().toISOString()
+    });
+
     res.json({
       ...result,
       paymentVerified: true,
@@ -192,9 +195,24 @@ app.post('/scan', async (req, res) => {
   }
 });
 
+// GET /stats — return scan history and total earnings
+app.get('/stats', (req, res) => {
+  const totalEarned = scanHistory.reduce((sum, s) => sum + parseFloat(s.amountPaid), 0);
+  res.json({
+    totalScans: scanHistory.length,
+    totalEarned: totalEarned.toFixed(4),
+    recentScans: scanHistory.slice(0, 20)
+  });
+});
+
 // GET / — serve frontend
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
+});
+
+// GET /dashboard — serve dashboard
+app.get('/dashboard', (req, res) => {
+  res.sendFile(__dirname + '/public/dashboard.html');
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
