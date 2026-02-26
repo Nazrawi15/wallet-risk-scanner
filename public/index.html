@@ -1,218 +1,328 @@
-require('dotenv').config();
-const express = require('express');
-const axios = require('axios');
-const Groq = require('groq-sdk');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Wallet Risk Scanner</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container { max-width: 680px; width: 100%; }
+    .header { text-align: center; margin-bottom: 40px; }
+    .header h1 { font-size: 2rem; color: #7c3aed; margin-bottom: 8px; }
+    .header p { color: #888; font-size: 0.95rem; }
+    .badge {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #7c3aed;
+      color: #a78bfa;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card label { display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9rem; }
+    .input-row { display: flex; gap: 10px; }
+    input[type="text"] {
+      flex: 1;
+      background: #0a0a0f;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      width: 100%;
+    }
+    input[type="text"]:focus { border-color: #7c3aed; }
+    button {
+      background: #7c3aed;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: #6d28d9; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .price-note { margin-top: 10px; color: #666; font-size: 0.8rem; }
+    .price-note span { color: #a78bfa; }
+    .payment-card {
+      background: #111118;
+      border: 1px solid #7c3aed;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .payment-card h2 { color: #f59e0b; margin-bottom: 12px; }
+    .payment-step {
+      background: #0a0a0f;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+      color: #ccc;
+    }
+    .payment-step strong { color: #a78bfa; }
+    .wallet-address {
+      background: #0d0d1a;
+      border: 1px solid #2d1b69;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #a78bfa;
+      word-break: break-all;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .wallet-address:hover { border-color: #7c3aed; }
+    .copy-hint { color: #666; font-size: 0.75rem; margin-bottom: 16px; }
+    .tx-input-section { margin-top: 16px; }
+    .tx-input-section label { display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9rem; }
+    .confirm-btn {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      width: 100%;
+    }
+    .confirm-btn:hover { background: #d97706; }
+    .loading { text-align: center; padding: 40px; display: none; color: #888; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #222;
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status-steps {
+      text-align: left; margin-top: 16px;
+      background: #0d0d1a; border: 1px solid #222;
+      border-radius: 8px; padding: 16px;
+      display: inline-block; min-width: 280px;
+    }
+    .step { margin-bottom: 10px; font-size: 0.9rem; transition: color 0.3s; }
+    .step:last-child { margin-bottom: 0; }
+    .result-screen { background: #111118; border: 1px solid #222; border-radius: 12px; padding: 24px; display: none; }
+    .risk-badge { display: inline-block; padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 1rem; margin-bottom: 16px; }
+    .risk-LOW { background: #064e3b; color: #34d399; }
+    .risk-MEDIUM { background: #451a03; color: #fbbf24; }
+    .risk-HIGH { background: #450a0a; color: #f87171; }
+    .score { font-size: 3rem; font-weight: 700; color: #7c3aed; margin-bottom: 4px; }
+    .score-label { color: #666; font-size: 0.85rem; margin-bottom: 24px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat { background: #0a0a0f; border: 1px solid #222; border-radius: 8px; padding: 12px; text-align: center; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; color: #a78bfa; }
+    .stat-label { font-size: 0.75rem; color: #666; margin-top: 4px; }
+    .ai-box { background: #0d0d1a; border: 1px solid #2d1b69; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .ai-box h3 { color: #a78bfa; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .ai-box p { color: #ccc; font-size: 0.9rem; line-height: 1.6; }
+    .flags { margin-top: 16px; }
+    .flags h3 { color: #888; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .flag-item { background: #1a0a0a; border-left: 3px solid #f87171; padding: 8px 12px; margin-bottom: 6px; border-radius: 4px; font-size: 0.85rem; color: #fca5a5; }
+    .no-flags { color: #34d399; font-size: 0.85rem; }
+    .tx-proof { margin-top: 16px; background: #0a0f0a; border: 1px solid #166534; border-radius: 8px; padding: 12px 16px; }
+    .tx-proof h3 { color: #34d399; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .tx-proof p { color: #888; font-size: 0.8rem; }
+    .powered { text-align: center; margin-top: 24px; color: #444; font-size: 0.8rem; }
+    .powered span { color: #7c3aed; }
+    .powered a { color: #7c3aed; text-decoration: none; }
+    .error-box { background: #1a0a0a; border: 1px solid #f87171; border-radius: 8px; padding: 12px 16px; margin-top: 12px; color: #fca5a5; font-size: 0.85rem; display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Built on PinionOS × Base × x402</div>
+      <h1>🔍 AI Wallet Risk Scanner</h1>
+      <p>Autonomous security intelligence. Pay $0.01 USDC on Base, get instant AI-powered risk analysis.</p>
+    </div>
 
-// ─── App Setup ───────────────────────────────────────────────────────────────
-const app = express();
-app.use(express.json());
-app.use(express.static('public'));
+    <div class="card" id="walletCard">
+      <label>Enter Ethereum Wallet Address to Scan</label>
+      <div class="input-row">
+        <input type="text" id="walletInput" placeholder="0x742d35Cc6634C0532925a3b844Bc454e4438f44e" />
+        <button onclick="startScan()" id="scanBtn">Scan Wallet</button>
+      </div>
+      <p class="price-note">Cost: <span>$0.01 USDC</span> per scan · Verified on-chain · Runs on Base</p>
+    </div>
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    <div class="payment-card" id="paymentCard">
+      <h2>⚡ Payment Required — $0.01 USDC</h2>
+      <div class="payment-step"><strong>Step 1</strong> — Open MetaMask and switch to <strong>Base Network</strong></div>
+      <div class="payment-step"><strong>Step 2</strong> — Send exactly <strong>$0.01 USDC</strong> to this address:</div>
+      <div class="wallet-address" id="walletAddressDisplay" onclick="copyAddress()">0xb3Ad1a22b8483Bc1abac5449F7508B8779e82B1C</div>
+      <p class="copy-hint">👆 Click to copy address</p>
+      <div class="payment-step"><strong>Step 3</strong> — After sending, paste your transaction hash below</div>
+      <div class="tx-input-section">
+        <label>Transaction Hash (from MetaMask or Basescan)</label>
+        <input type="text" id="txHashInput" placeholder="0x1234abcd..." />
+        <button class="confirm-btn" onclick="confirmPayment()">✅ Verify Payment & Scan</button>
+      </div>
+      <div class="error-box" id="errorBox"></div>
+    </div>
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-const USDC_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-const MINIMUM_PAYMENT = 9000; // $0.01 USDC (6 decimals)
+    <div class="loading" id="loadingScreen">
+      <div class="spinner"></div>
+      <div class="status-steps">
+        <p class="step" id="step1">⏳ Verifying on-chain payment...</p>
+        <p class="step" id="step2">⏳ PinionOS Skill Executing...</p>
+        <p class="step" id="step3">⏳ AI Risk Assessment Generating...</p>
+      </div>
+    </div>
 
-// ─── Scan History (in-memory store) ──────────────────────────────────────────
-const scanHistory = [];
+    <div class="result-screen" id="resultScreen">
+      <div id="riskBadge" class="risk-badge"></div>
+      <div class="score" id="scoreValue"></div>
+      <div class="score-label">Risk Score out of 100</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-value" id="totalTx"></div><div class="stat-label">Transactions</div></div>
+        <div class="stat"><div class="stat-value" id="failedTx"></div><div class="stat-label">Failed</div></div>
+        <div class="stat"><div class="stat-value" id="contracts"></div><div class="stat-label">Contracts</div></div>
+      </div>
+      <div class="ai-box">
+        <h3>🤖 AI Analysis</h3>
+        <p id="aiExplanation"></p>
+      </div>
+      <div class="flags">
+        <h3>Risk Flags</h3>
+        <div id="flagsList"></div>
+      </div>
+      <div class="tx-proof">
+        <h3>⛓ On-Chain Payment Verified</h3>
+        <p id="paymentProof"></p>
+      </div>
+      <button onclick="resetScan()" style="margin-top:16px; width:100%;">Scan Another Wallet</button>
+    </div>
 
-// ─── Payment Verification ────────────────────────────────────────────────────
-async function verifyPayment(txHash) {
-  try {
-    const response = await axios.get(
-      `https://base.blockscout.com/api/v2/addresses/${process.env.WALLET_ADDRESS}/token-transfers`,
-      { params: { type: 'ERC-20' } }
-    );
+    <div class="powered">
+      Powered by <span>PinionOS</span> · Base Network · x402 Protocol &nbsp;·&nbsp;
+      <a href="/dashboard">📊 View Dashboard</a>
+    </div>
+  </div>
 
-    const transfers = response.data.items;
-    if (!transfers || transfers.length === 0) {
-      return { valid: false, reason: 'No transfers found for scanner wallet.' };
+  <script>
+    let currentAddress = '';
+
+    function startScan() {
+      const address = document.getElementById('walletInput').value.trim();
+      if (!address) return alert('Please enter a wallet address');
+      currentAddress = address;
+      document.getElementById('paymentCard').style.display = 'block';
+      document.getElementById('resultScreen').style.display = 'none';
+      document.getElementById('errorBox').style.display = 'none';
+      window.scrollTo(0, document.getElementById('paymentCard').offsetTop);
     }
 
-    const match = transfers.find(t =>
-      t.transaction_hash &&
-      t.transaction_hash.toLowerCase() === txHash.toLowerCase() &&
-      t.to?.hash?.toLowerCase() === (process.env.WALLET_ADDRESS || '').toLowerCase() &&
-      t.token?.address_hash?.toLowerCase() === USDC_CONTRACT.toLowerCase()
-    );
-
-    if (!match) {
-      return {
-        valid: false,
-        reason: `Payment not found. Make sure you sent USDC on Base to: ${process.env.WALLET_ADDRESS}`
-      };
+    function copyAddress() {
+      const addr = '0xb3Ad1a22b8483Bc1abac5449F7508B8779e82B1C';
+      navigator.clipboard.writeText(addr);
+      document.getElementById('walletAddressDisplay').textContent = '✅ Copied!';
+      setTimeout(() => { document.getElementById('walletAddressDisplay').textContent = addr; }, 2000);
     }
 
-    const value = parseInt(match.total.value);
-    if (value < MINIMUM_PAYMENT) {
-      return {
-        valid: false,
-        reason: `Payment too low. Need $0.01 USDC. Found: $${(value / 1000000).toFixed(4)}`
-      };
+    async function confirmPayment() {
+      const txHash = document.getElementById('txHashInput').value.trim();
+      if (!txHash) return alert('Please enter your transaction hash');
+
+      document.getElementById('paymentCard').style.display = 'none';
+      document.getElementById('loadingScreen').style.display = 'block';
+
+      setTimeout(() => { document.getElementById('step1').style.color = '#34d399'; document.getElementById('step1').textContent = '✅ On-chain payment verified'; }, 1500);
+      setTimeout(() => { document.getElementById('step2').style.color = '#34d399'; document.getElementById('step2').textContent = '✅ PinionOS Skill Executed'; }, 2500);
+      setTimeout(() => { document.getElementById('step3').style.color = '#34d399'; document.getElementById('step3').textContent = '✅ AI Risk Assessment Generated'; }, 3500);
+
+      try {
+        const response = await fetch('/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: currentAddress, txHash: txHash })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 402) {
+          document.getElementById('loadingScreen').style.display = 'none';
+          document.getElementById('paymentCard').style.display = 'block';
+          document.getElementById('errorBox').style.display = 'block';
+          document.getElementById('errorBox').textContent = '❌ ' + (data.reason || data.error);
+          return;
+        }
+
+        setTimeout(() => {
+          document.getElementById('loadingScreen').style.display = 'none';
+          document.getElementById('resultScreen').style.display = 'block';
+          document.getElementById('riskBadge').textContent = data.riskLevel + ' RISK';
+          document.getElementById('riskBadge').className = 'risk-badge risk-' + data.riskLevel;
+          document.getElementById('scoreValue').textContent = data.riskScore;
+          document.getElementById('totalTx').textContent = data.totalTransactions;
+          document.getElementById('failedTx').textContent = data.failedTransactions;
+          document.getElementById('contracts').textContent = data.uniqueContracts;
+          document.getElementById('aiExplanation').textContent = data.aiExplanation;
+          document.getElementById('paymentProof').textContent = 'Paid by: ' + data.paidBy + ' · Amount: $' + data.amountPaid + ' USDC · Verified on Base network';
+
+          const flagsList = document.getElementById('flagsList');
+          flagsList.innerHTML = '';
+          if (data.flags && data.flags.length > 0) {
+            data.flags.forEach(flag => {
+              const div = document.createElement('div');
+              div.className = 'flag-item';
+              div.textContent = flag;
+              flagsList.appendChild(div);
+            });
+          } else {
+            flagsList.innerHTML = '<p class="no-flags">✅ No risk flags detected</p>';
+          }
+        }, 4000);
+
+      } catch (error) {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('paymentCard').style.display = 'block';
+        document.getElementById('errorBox').style.display = 'block';
+        document.getElementById('errorBox').textContent = '❌ Scan failed. Please try again.';
+      }
     }
 
-    return {
-      valid: true,
-      amount: (value / 1000000).toFixed(4),
-      from: match.from.hash
-    };
-
-  } catch (error) {
-    return { valid: false, reason: 'Could not verify payment: ' + error.message };
-  }
-}
-
-// ─── Risk Scoring Engine ─────────────────────────────────────────────────────
-async function analyzeWallet(address) {
-  const response = await axios.get('https://api.etherscan.io/v2/api', {
-    params: {
-      module: 'account',
-      action: 'txlist',
-      address,
-      startblock: 0,
-      endblock: 99999999,
-      page: 1,
-      offset: 100,
-      sort: 'desc',
-      apikey: process.env.ETHERSCAN_API_KEY,
-      chainid: 1
+    function resetScan() {
+      document.getElementById('resultScreen').style.display = 'none';
+      document.getElementById('walletInput').value = '';
+      document.getElementById('txHashInput').value = '';
+      document.getElementById('step1').style.color = '#888';
+      document.getElementById('step1').textContent = '⏳ Verifying on-chain payment...';
+      document.getElementById('step2').style.color = '#888';
+      document.getElementById('step2').textContent = '⏳ PinionOS Skill Executing...';
+      document.getElementById('step3').style.color = '#888';
+      document.getElementById('step3').textContent = '⏳ AI Risk Assessment Generating...';
     }
-  });
-
-  const transactions = response.data.result;
-  if (!Array.isArray(transactions)) {
-    return { error: 'Invalid wallet address or no transactions found' };
-  }
-
-  let riskScore = 0;
-  const flags = [];
-
-  if (transactions.length === 0) {
-    riskScore += 20;
-    flags.push('No transaction history');
-  }
-
-  const failedTx = transactions.filter(tx => tx.isError === '1');
-  if (failedTx.length > 5) {
-    riskScore += 30;
-    flags.push(`High failed transaction count: ${failedTx.length}`);
-  }
-
-  if (transactions.length > 0) {
-    const firstTx = transactions[transactions.length - 1];
-    const ageInDays = (Date.now() / 1000 - parseInt(firstTx.timeStamp)) / 86400;
-    if (ageInDays < 30) {
-      riskScore += 25;
-      flags.push(`New wallet — only ${Math.floor(ageInDays)} days old`);
-    }
-  }
-
-  const uniqueContracts = [...new Set(transactions.map(tx => tx.to))];
-  if (uniqueContracts.length > 50) {
-    riskScore += 15;
-    flags.push(`Interacts with many contracts: ${uniqueContracts.length}`);
-  }
-
-  const riskLevel = riskScore >= 50 ? 'HIGH' : riskScore >= 25 ? 'MEDIUM' : 'LOW';
-
-  const aiResponse = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    max_tokens: 300,
-    messages: [{
-      role: 'user',
-      content: `You are a blockchain security expert. Analyze this wallet and give a 3-4 sentence plain English explanation.
-Wallet: ${address}
-Risk Score: ${riskScore}/100
-Risk Level: ${riskLevel}
-Total Transactions: ${transactions.length}
-Failed Transactions: ${failedTx.length}
-Unique Contracts: ${uniqueContracts.length}
-Flags: ${flags.length > 0 ? flags.join(', ') : 'None'}`
-    }]
-  });
-
-  return {
-    address,
-    riskScore,
-    riskLevel,
-    flags,
-    totalTransactions: transactions.length,
-    failedTransactions: failedTx.length,
-    uniqueContracts: uniqueContracts.length,
-    aiExplanation: aiResponse.choices[0].message.content
-  };
-}
-
-// ─── Routes ──────────────────────────────────────────────────────────────────
-
-app.post('/scan', async (req, res) => {
-  const { address, txHash } = req.body;
-
-  if (!address) {
-    return res.status(400).json({ error: 'Wallet address required' });
-  }
-
-  if (!txHash) {
-    return res.status(402).json({
-      error: 'Payment Required',
-      price: '$0.01 USDC',
-      network: 'Base',
-      payTo: process.env.WALLET_ADDRESS,
-      instructions: 'Send $0.01 USDC on Base network then resubmit with your transaction hash'
-    });
-  }
-
-  const payment = await verifyPayment(txHash);
-  if (!payment.valid) {
-    return res.status(402).json({
-      error: 'Payment verification failed',
-      reason: payment.reason
-    });
-  }
-
-  try {
-    const result = await analyzeWallet(address);
-
-    scanHistory.unshift({
-      address: result.address,
-      riskLevel: result.riskLevel,
-      riskScore: result.riskScore,
-      amountPaid: payment.amount,
-      paidBy: payment.from,
-      timestamp: new Date().toISOString()
-    });
-
-    res.json({
-      ...result,
-      paymentVerified: true,
-      paidBy: payment.from,
-      amountPaid: payment.amount
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Scan failed', details: error.message });
-  }
-});
-
-app.get('/stats', (req, res) => {
-  const totalEarned = scanHistory.reduce((sum, s) => sum + parseFloat(s.amountPaid), 0);
-  res.json({
-    totalScans: scanHistory.length,
-    totalEarned: totalEarned.toFixed(4),
-    recentScans: scanHistory.slice(0, 20)
-  });
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
-
-app.get('/dashboard', (req, res) => {
-  res.sendFile(__dirname + '/public/dashboard.html');
-});
-
-// ─── Start Server ─────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+  </script>
+</body>
+</html>
