@@ -12,6 +12,19 @@ https://wallet-risk-scanner-production.up.railway.app
 
 ---
 
+## The Full Loop
+```
+PinionOS Agent → pays $0.01 USDC on Base → Scanner verifies on-chain → AI analyzes → Report returned
+```
+
+This is not a simulation. Every step is real:
+- The agent uses PinionOS SDK to autonomously sign and broadcast a real USDC payment
+- The scanner verifies the transaction on-chain via Blockscout before running
+- The AI generates a plain English risk explanation
+- The report is returned with payment proof
+
+---
+
 ## The idea
 
 Before sending crypto to someone or interacting with a wallet, you want to know if it's safe. This tool scans the wallet's transaction history and gives you a plain English explanation of how risky it is.
@@ -33,6 +46,25 @@ The twist — it costs $0.01 USDC per scan, paid on Base via real on-chain trans
 
 ---
 
+## PinionOS Agent Demo
+
+The `agent-demo.mjs` file shows a PinionOS agent doing the entire flow autonomously:
+```bash
+node --env-file=.env agent-demo.mjs
+```
+
+What the agent does on its own:
+1. Checks its own wallet balance using PinionOS SDK
+2. Gets live ETH price using PinionOS SDK
+3. Signs and broadcasts a real $0.01 USDC payment on Base
+4. Waits for on-chain confirmation
+5. Calls the scanner with the transaction hash as proof
+6. Gets back a full AI risk report
+
+No human intervention. No clicks. Just an agent paying for intelligence and acting on it.
+
+---
+
 ## Real on-chain payments
 
 Every scan requires a real verified USDC payment on Base. The scanner checks Blockscout to confirm the transaction actually happened before returning any results.
@@ -44,18 +76,9 @@ https://basescan.org/address/0xb3Ad1a22b8483Bc1abac5449F7508B8779e82B1C#tokentxn
 
 ---
 
-## PinionOS integration
-
-This project uses the PinionOS SDK for autonomous agent operations. The PinionOS agent autonomously pays for blockchain intelligence skills on Base network — balance checks, price feeds, and transaction lookups — all paid automatically with real USDC.
-
-Real agent payment transactions:
-https://basescan.org/address/0xb3Ad1a22b8483Bc1abac5449F7508B8779e82B1C#tokentxns
-
----
-
 ## Tech stack
 
-- PinionOS — autonomous agent and x402 payment infrastructure
+- PinionOS — autonomous agent, x402 payment signing, blockchain skills
 - Blockscout — on-chain payment verification on Base
 - Etherscan API — live Ethereum wallet data
 - Groq AI — plain English risk explanation
@@ -90,6 +113,11 @@ Open your browser:
 http://localhost:3000
 ```
 
+Run the autonomous agent demo:
+```bash
+node --env-file=.env agent-demo.mjs
+```
+
 ---
 
 ## Risk scoring
@@ -105,9 +133,9 @@ The AI explains exactly why the wallet scored the way it did in plain English.
 ## Project structure
 ```
 wallet-risk-scanner/
-├── index.js          — backend, payment verification, scan logic
-├── agent-demo.mjs    — PinionOS autonomous agent demo
+├── index.js            — backend, payment verification, scan logic
+├── agent-demo.mjs      — PinionOS autonomous agent demo
 ├── public/
-│   └── index.html    — frontend UI
-└── .env              — API keys (never committed)
+│   └── index.html      — frontend UI
+└── .env                — API keys (never committed)
 ```
