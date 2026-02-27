@@ -8,7 +8,7 @@ Built for the PinionOS hackathon
 
 ## Live Demo
 
-https://wallet-risk-scanner-production.up.railway.app
+https://wallet-risk-scanner.up.railway.app/
 
 ---
 
